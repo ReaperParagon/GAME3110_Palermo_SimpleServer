@@ -14,6 +14,7 @@ public class NetworkedServer : MonoBehaviour
     int hostID;
     int socketPort = 5491;
 
+    string playerAccountsFilepath;
 
     LinkedList<PlayerAccount> playerAccounts;
 
@@ -28,6 +29,7 @@ public class NetworkedServer : MonoBehaviour
         hostID = NetworkTransport.AddHost(topology, socketPort, null);
 
         playerAccounts = new LinkedList<PlayerAccount>();
+        playerAccountsFilepath = Application.dataPath + Path.DirectorySeparatorChar + "Accounts.txt";
 
         // Read in player accounts
         LoadPlayerAccounts();
@@ -155,7 +157,7 @@ public class NetworkedServer : MonoBehaviour
 
     private void SavePlayerAccounts()
     {
-        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + "Accounts.txt");
+        StreamWriter sw = new StreamWriter(playerAccountsFilepath);
 
         foreach (PlayerAccount pa in playerAccounts)
         {
@@ -167,18 +169,23 @@ public class NetworkedServer : MonoBehaviour
 
     private void LoadPlayerAccounts()
     {
-        StreamReader sr = new StreamReader(Application.dataPath + Path.DirectorySeparatorChar + "Accounts.txt");
-
-        string line;
-        while ((line = sr.ReadLine()) != null)
+        if (File.Exists(playerAccountsFilepath))
         {
-            Debug.Log(line);
+            StreamReader sr = new StreamReader(playerAccountsFilepath);
 
-            string[] csv = line.Split(',');
+            string line;
+            while ((line = sr.ReadLine()) != null)
+            {
+                Debug.Log(line);
 
-            PlayerAccount pa = new PlayerAccount(csv[0], csv[1]);
+                string[] csv = line.Split(',');
 
-            playerAccounts.AddLast(pa);
+                PlayerAccount pa = new PlayerAccount(csv[0], csv[1]);
+
+                playerAccounts.AddLast(pa);
+            }
+
+            sr.Close();
         }
     }
 }
