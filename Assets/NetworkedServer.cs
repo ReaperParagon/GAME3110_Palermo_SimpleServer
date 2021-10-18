@@ -159,7 +159,7 @@ public class NetworkedServer : MonoBehaviour
 
         foreach (PlayerAccount pa in playerAccounts)
         {
-            sw.WriteLine(ClientToServerSignifiers.AccountInfoSignifier + "," + pa.name + "," + pa.password);
+            sw.WriteLine(pa.name + "," + pa.password);
         }
 
         sw.Close();
@@ -176,14 +176,9 @@ public class NetworkedServer : MonoBehaviour
 
             string[] csv = line.Split(',');
 
-            int signifier = int.Parse(csv[0]);
+            PlayerAccount pa = new PlayerAccount(csv[0], csv[1]);
 
-            if (signifier == ClientToServerSignifiers.AccountInfoSignifier)
-            {
-                PlayerAccount pa = new PlayerAccount(csv[1], csv[2]);
-
-                playerAccounts.AddLast(pa);
-            }
+            playerAccounts.AddLast(pa);
         }
     }
 }
@@ -204,7 +199,6 @@ public static class ClientToServerSignifiers
 {
     public const int CreateAccount = 1;
     public const int Login = 2;
-    public const int AccountInfoSignifier = 101;
 }
 
 public static class ServerToClientSignifiers
