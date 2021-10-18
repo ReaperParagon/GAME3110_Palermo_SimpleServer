@@ -30,7 +30,7 @@ public class NetworkedServer : MonoBehaviour
         playerAccounts = new LinkedList<PlayerAccount>();
 
         // Read in player accounts
-
+        LoadPlayerAccounts();
     }
 
     // Update is called once per frame
@@ -82,10 +82,7 @@ public class NetworkedServer : MonoBehaviour
 
         if (signifier == ClientToServerSignifiers.CreateAccount)
         {
-            Debug.Log("Creating Account");
-
             // Check if player account name already exists, 
-
             string n = csv[1];
             string p = csv[2];
             bool nameInUse = false;
@@ -101,25 +98,94 @@ public class NetworkedServer : MonoBehaviour
             
             if (nameInUse)
             {
-                SendMessageToClient(ServerToClientSignifiers.AccountCreationFailed + "", id); 
+                SendMessageToClient(ServerToClientSignifiers.AccountCreationFailed + ": Name already in use", id); 
             }
             else
             {
                 PlayerAccount newPlayerAccount = new PlayerAccount(n, p);
                 playerAccounts.AddLast(newPlayerAccount);
-                SendMessageToClient(ServerToClientSignifiers.AccountCreationComplete + "", id);
+                SendMessageToClient(ServerToClientSignifiers.AccountCreationComplete + ": Succesful Account Creation", id);
+
                 // Save to list HD
+                SavePlayerAccounts();
             }
         }
         else
+
         if (signifier == ClientToServerSignifiers.Login)
         {
-            Debug.Log("Login to Account");
             // Check if player account name already exists, 
-            // Send to client success / failure
+            PlayerAccount loginPlayer = null;
+            string n = csv[1];
+            string p = csv[2];
+            bool nameInUse = false;
+
+            foreach (PlayerAccount pa in playerAccounts)
+            {
+                if (pa.name == n)
+                {
+                    loginPlayer = pa;
+                    nameInUse = true;
+                    break;
+                }
+            }
+
+            if (nameInUse)
+            {
+                // Check password, if correct
+                if (p == loginPlayer.password)
+                {
+                    SendMessageToClient(ServerToClientSignifiers.LoginComplete + ": Successful Login", id);
+                }
+                else
+                {
+                    // Password is not correct
+                    SendMessageToClient(ServerToClientSignifiers.LoginFailed + ": Wrong Password", id);
+                }
+
+            }
+            else
+            {
+                // Login does not exist
+                SendMessageToClient(ServerToClientSignifiers.LoginFailed + ": No Account exists", id);
+            }
         }
     }
 
+
+    private void SavePlayerAccounts()
+    {
+        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + "Accounts.txt");
+
+        foreach (PlayerAccount pa in playerAccounts)
+        {
+            sw.WriteLine(ClientToServerSignifiers.AccountInfoSignifier + "," + pa.name + "," + pa.password);
+        }
+
+        sw.Close();
+    }
+
+    private void LoadPlayerAccounts()
+    {
+        StreamReader sr = new StreamReader(Application.dataPath + Path.DirectorySeparatorChar + "Accounts.txt");
+
+        string line;
+        while ((line = sr.ReadLine()) != null)
+        {
+            Debug.Log(line);
+
+            string[] csv = line.Split(',');
+
+            int signifier = int.Parse(csv[0]);
+
+            if (signifier == ClientToServerSignifiers.AccountInfoSignifier)
+            {
+                PlayerAccount pa = new PlayerAccount(csv[1], csv[2]);
+
+                playerAccounts.AddLast(pa);
+            }
+        }
+    }
 }
 
 
@@ -138,6 +204,7 @@ public static class ClientToServerSignifiers
 {
     public const int CreateAccount = 1;
     public const int Login = 2;
+    public const int AccountInfoSignifier = 101;
 }
 
 public static class ServerToClientSignifiers
