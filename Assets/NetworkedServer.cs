@@ -171,8 +171,9 @@ public class NetworkedServer : MonoBehaviour
                 GameRoom gr = new GameRoom(playerWaitingForMatchWithID, id);
                 gameRooms.AddLast(gr);
 
-                SendMessageToClient(ServerToClientSignifiers.GameStart + "", playerWaitingForMatchWithID);
-                SendMessageToClient(ServerToClientSignifiers.GameStart + "", id);
+                // 0 plays first, 1 plays second
+                SendMessageToClient(ServerToClientSignifiers.GameStart + "," + TeamSignifier.O, playerWaitingForMatchWithID);
+                SendMessageToClient(ServerToClientSignifiers.GameStart + "," + TeamSignifier.X, id);
 
                 playerWaitingForMatchWithID = -1;
             }
@@ -188,10 +189,13 @@ public class NetworkedServer : MonoBehaviour
             // If game room exists
             if (gr != null)
             {
+                var location = int.Parse(csv[1]);
+
+                // Player 1 is Os, Player 2 is Xs
                 if (gr.playerID1 == id)
-                    SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "", gr.playerID2);
+                    SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O, gr.playerID2);
                 else
-                    SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "", gr.playerID1);
+                    SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X, gr.playerID1);
             }
         }
     }
@@ -266,6 +270,12 @@ public class GameRoom
         playerID1 = PlayerID1;
         playerID2 = PlayerID2;
     }
+}
+
+public static class TeamSignifier
+{
+    public const int O = 0;
+    public const int X = 1;
 }
 
 public static class ClientToServerSignifiers
