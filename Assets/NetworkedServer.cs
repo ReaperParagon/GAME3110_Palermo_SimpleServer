@@ -193,9 +193,57 @@ public class NetworkedServer : MonoBehaviour
 
                 // Player 1 is Os, Player 2 is Xs
                 if (gr.playerID1 == id)
-                    SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O, gr.playerID2);
+                {
+                    // Player 1 Played
+
+                    // Record info in game room
+                    gr.gameBoard[location] = TeamSignifier.O;
+
+                    // Check for a win
+                    if (gr.CheckWin())
+                    {
+                        // Set the board for the opponent
+                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O + "," + WinStates.Player1Wins, gr.playerID2);
+
+                        // Tell both players about the win
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Player1Wins, gr.playerID1);
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Player1Wins, gr.playerID2);
+
+                        // TODO: Record win / loss information into accounts
+                    }
+                    else
+                    {
+                        // else, Continue playing
+                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O + "," + WinStates.ContinuePlay, gr.playerID2);
+                    }
+
+                }
                 else
-                    SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X, gr.playerID1);
+                {
+                    // Player 2 Played
+
+                    // Record info in game room
+                    gr.gameBoard[location] = TeamSignifier.X;
+
+                    // Check for a win
+                    if (gr.CheckWin())
+                    {
+                        // Set the board for the opponent
+                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X + "," + WinStates.Player2Wins, gr.playerID1);
+
+                        // Tell both players about the win
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Player2Wins, gr.playerID1);
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Player2Wins, gr.playerID2);
+
+                        // TODO: Record win / loss information into accounts
+                    }
+                    else
+                    {
+                        // else, Continue playing
+                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X + "," + WinStates.ContinuePlay, gr.playerID1);
+                    }
+
+                }
             }
         }
     }
@@ -265,15 +313,71 @@ public class GameRoom
 {
     public int playerID1, playerID2;
 
+    public int[] gameBoard = new int[9];
+
     public GameRoom(int PlayerID1, int PlayerID2)
     {
         playerID1 = PlayerID1;
         playerID2 = PlayerID2;
+
+        // Setup initial board
+        for (int i = 0; i < gameBoard.Length; i++)
+        {
+            gameBoard[i] = TeamSignifier.None;
+        }
     }
+
+    public bool CompareSlots(int slot1, int slot2, int slot3)
+    {
+        // If one of the slots is not empty
+        if (slot1 != TeamSignifier.None)
+        {
+            // If the Slots are all the same
+            if (slot1 == slot2 && slot2 == slot3)
+            {
+                // We have a winner!
+                return true;
+            }
+        }
+
+        // No win yet
+        return false;
+    }
+
+    public bool CheckWin()
+    {
+        // Compare slots for all different combinations, if any are true, return true
+        if (CompareSlots(gameBoard[Board.TopLeft], gameBoard[Board.TopMid], gameBoard[Board.TopRight])       ||
+            CompareSlots(gameBoard[Board.MidLeft], gameBoard[Board.MidMid], gameBoard[Board.MidRight])       ||
+            CompareSlots(gameBoard[Board.BotLeft], gameBoard[Board.BotMid], gameBoard[Board.BotRight])       ||
+            CompareSlots(gameBoard[Board.TopLeft], gameBoard[Board.MidLeft], gameBoard[Board.BotLeft])       ||
+            CompareSlots(gameBoard[Board.TopMid], gameBoard[Board.MidMid], gameBoard[Board.BotMid])          ||
+            CompareSlots(gameBoard[Board.TopRight], gameBoard[Board.MidRight], gameBoard[Board.BotRight])    ||
+            CompareSlots(gameBoard[Board.TopLeft], gameBoard[Board.MidMid], gameBoard[Board.BotRight])       ||
+            CompareSlots(gameBoard[Board.TopRight], gameBoard[Board.MidMid], gameBoard[Board.BotLeft]))
+            return true;
+
+        // No win found
+        return false;
+    }
+}
+
+public static class Board
+{
+    public const int TopLeft = 0;
+    public const int TopMid = 1;
+    public const int TopRight = 2;
+    public const int MidLeft = 3;
+    public const int MidMid = 4;
+    public const int MidRight = 5;
+    public const int BotLeft = 6;
+    public const int BotMid = 7;
+    public const int BotRight = 8;
 }
 
 public static class TeamSignifier
 {
+    public const int None = -1;
     public const int O = 0;
     public const int X = 1;
 }
@@ -295,6 +399,15 @@ public static class ServerToClientSignifiers
     public const int AccountCreationComplete = 3;
     public const int AccountCreationFailed = 4;
 
-    public const int OpponentPlayed = 5;
+    public const int OpponentPlayed = 5;    // Location, Team, Gameover?
     public const int GameStart = 6;
+
+    public const int GameOver = 7;
+}
+
+public static class WinStates
+{
+    public const int ContinuePlay = 0;
+    public const int Player1Wins = 1;
+    public const int Player2Wins = 2;
 }
