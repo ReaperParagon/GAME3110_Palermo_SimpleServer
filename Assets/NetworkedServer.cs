@@ -203,11 +203,11 @@ public class NetworkedServer : MonoBehaviour
                     if (gr.CheckWin())
                     {
                         // Set the board for the opponent
-                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O + "," + WinStates.Player1Wins, gr.playerID2);
+                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O + "," + WinStates.Loss, gr.playerID2);
 
                         // Tell both players about the win
-                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Player1Wins, gr.playerID1);
-                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Player1Wins, gr.playerID2);
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Win, gr.playerID1);
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Loss, gr.playerID2);
 
                         // TODO: Record win / loss information into accounts
                     }
@@ -229,11 +229,11 @@ public class NetworkedServer : MonoBehaviour
                     if (gr.CheckWin())
                     {
                         // Set the board for the opponent
-                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X + "," + WinStates.Player2Wins, gr.playerID1);
+                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X + "," + WinStates.Loss, gr.playerID1);
 
                         // Tell both players about the win
-                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Player2Wins, gr.playerID1);
-                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Player2Wins, gr.playerID2);
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Loss, gr.playerID1);
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Win, gr.playerID2);
 
                         // TODO: Record win / loss information into accounts
                     }
@@ -408,6 +408,6 @@ public static class ServerToClientSignifiers
 public static class WinStates
 {
     public const int ContinuePlay = 0;
-    public const int Player1Wins = 1;
-    public const int Player2Wins = 2;
+    public const int Win = 1;
+    public const int Loss = 2;
 }
