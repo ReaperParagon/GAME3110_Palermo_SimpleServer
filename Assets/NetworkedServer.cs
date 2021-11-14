@@ -168,8 +168,8 @@ public class NetworkedServer : MonoBehaviour
             }
             else
             {
-                GameRoom gr = new GameRoom(playerWaitingForMatchWithID, id);
-                gameRooms.AddLast(gr);
+                GameRoom gr = GetAvailableGameRoom(playerWaitingForMatchWithID, id);
+                gr.ResetBoard();
 
                 // 0 plays first, 1 plays second
                 SendMessageToClient(ServerToClientSignifiers.GameStart + "," + TeamSignifier.O, playerWaitingForMatchWithID);
@@ -246,6 +246,14 @@ public class NetworkedServer : MonoBehaviour
                 }
             }
         }
+        else
+
+        if (signifier == ClientToServerSignifiers.LeaveRoom)
+        {
+            // Remove ID from game rooms
+            GameRoom gr = GetGameRoomWithClientID(id);
+            gr.RemoveMatchingID(id);
+        }
     }
 
 
@@ -283,7 +291,7 @@ public class NetworkedServer : MonoBehaviour
         }
     }
 
-    private GameRoom GetGameRoomWithClientID( int id)
+    private GameRoom GetGameRoomWithClientID(int id)
     {
         foreach(GameRoom gr in gameRooms)
         {
@@ -294,6 +302,31 @@ public class NetworkedServer : MonoBehaviour
         }
 
         return null;
+    }
+
+    private GameRoom GetAvailableGameRoom(int ID1, int ID2)
+    {
+        GameRoom gr = null;
+
+        foreach (var room in gameRooms)
+        {
+            if (room != null && room.CheckAvailable())
+            {
+                gr = room;
+                break;
+            }
+        }
+
+        // Check if we went through all game rooms, create a new one if not found
+        if (gr == null)
+        {
+            gr = new GameRoom(ID1, ID2);
+            gameRooms.AddLast(gr);
+        }
+
+        // Setup room and return it
+        gr.SetupRoom(ID1, ID2);
+        return gr;
     }
 }
 
@@ -321,9 +354,20 @@ public class GameRoom
         playerID2 = PlayerID2;
 
         // Setup initial board
-        for (int i = 0; i < gameBoard.Length; i++)
+        ResetBoard();
+    }
+
+    public void SetupRoom(int PlayerID1, int PlayerID2)
+    {
+        // Check if available
+        if (CheckAvailable())
         {
-            gameBoard[i] = TeamSignifier.None;
+            // Setup Players and Board
+
+            playerID1 = PlayerID1;
+            playerID2 = PlayerID2;
+
+            ResetBoard();
         }
     }
 
@@ -360,6 +404,37 @@ public class GameRoom
         // No win found
         return false;
     }
+
+    public void RemoveMatchingID(int id)
+    {
+        // Remove matching ID
+        if (playerID1 == id)
+        {
+            playerID1 = -1;
+        }
+        else if (playerID2 == id)
+        {
+            playerID2 = -1;
+        }
+    }
+
+    public bool CheckAvailable()
+    {
+        if (playerID1 == -1 && playerID2 == -1)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    public void ResetBoard()
+    {
+        for (int i = 0; i < gameBoard.Length; i++)
+        {
+            gameBoard[i] = TeamSignifier.None;
+        }
+    }
 }
 
 public static class Board
@@ -390,6 +465,8 @@ public static class ClientToServerSignifiers
     public const int JoinQueueForGameRoom = 3;
 
     public const int TicTacToePlay = 4;
+
+    public const int LeaveRoom = 5;
 }
 
 public static class ServerToClientSignifiers
