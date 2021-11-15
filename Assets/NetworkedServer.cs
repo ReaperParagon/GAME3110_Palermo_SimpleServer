@@ -211,6 +211,14 @@ public class NetworkedServer : MonoBehaviour
 
                         // TODO: Record win / loss information into accounts
                     }
+                    else if (gr.CheckTie())
+                    {
+                        // Tell both players about the tie
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Tie, gr.playerID1);
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Tie, gr.playerID2);
+
+                        // TODO: Record win / loss information into accounts
+                    }
                     else
                     {
                         // else, Continue playing
@@ -237,6 +245,14 @@ public class NetworkedServer : MonoBehaviour
 
                         // TODO: Record win / loss information into accounts
                     }
+                    else if (gr.CheckTie())
+                    {
+                        // Tell both players about the tie
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Tie, gr.playerID1);
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Tie, gr.playerID2);
+
+                        // TODO: Record win / loss information into accounts
+                    }
                     else
                     {
                         // else, Continue playing
@@ -253,6 +269,20 @@ public class NetworkedServer : MonoBehaviour
             // Remove ID from game rooms
             GameRoom gr = GetGameRoomWithClientID(id);
             gr.RemoveMatchingID(id);
+        }
+        else 
+
+        if (signifier == ClientToServerSignifiers.TextMessage)
+        {
+            // TODO: Use Player Login Names
+            var message = "Player " + id + ": " + csv[1];
+
+            // Find the room the player is in
+            GameRoom gr = GetGameRoomWithClientID(id);
+
+            // TODO: Send message to all participants
+            SendMessageToClient(ServerToClientSignifiers.TextMessage + "," + message, gr.playerID1);
+            SendMessageToClient(ServerToClientSignifiers.TextMessage + "," + message, gr.playerID2);
         }
     }
 
@@ -405,6 +435,26 @@ public class GameRoom
         return false;
     }
 
+    public bool CheckTie()
+    {
+        // If there is no winner...
+        if (!CheckWin())
+        {
+            // ...And all the slots are not empty...
+            foreach (var slot in gameBoard)
+            {
+                if (slot == TeamSignifier.None)
+                    return false;
+            }
+
+            // ...Then we have a tie
+            return true;
+        }
+
+        // There is a winner in this sceneario, no tie
+        return false;
+    }
+
     public void RemoveMatchingID(int id)
     {
         // Remove matching ID
@@ -467,6 +517,8 @@ public static class ClientToServerSignifiers
     public const int TicTacToePlay = 4;
 
     public const int LeaveRoom = 5;
+
+    public const int TextMessage = 6;
 }
 
 public static class ServerToClientSignifiers
@@ -480,6 +532,8 @@ public static class ServerToClientSignifiers
     public const int GameStart = 6;
 
     public const int GameOver = 7;
+
+    public const int TextMessage = 8;
 }
 
 public static class WinStates
@@ -487,4 +541,5 @@ public static class WinStates
     public const int ContinuePlay = 0;
     public const int Win = 1;
     public const int Loss = 2;
+    public const int Tie = 3;
 }
