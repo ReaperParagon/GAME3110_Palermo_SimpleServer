@@ -198,6 +198,7 @@ public class NetworkedServer : MonoBehaviour
 
                     // Record info in game room
                     gr.gameBoard[location] = TeamSignifier.O;
+                    gr.replayInfo += location + "." + TeamSignifier.O;
 
                     // Check for a win
                     if (gr.CheckWin())
@@ -208,20 +209,17 @@ public class NetworkedServer : MonoBehaviour
                         // Tell both players about the win
                         SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Win, gr.playerID1);
                         SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Loss, gr.playerID2);
-
-                        // TODO: Record win / loss information into accounts
                     }
                     else if (gr.CheckTie())
                     {
                         // Tell both players about the tie
                         SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Tie, gr.playerID1);
                         SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Tie, gr.playerID2);
-
-                        // TODO: Record win / loss information into accounts
                     }
                     else
                     {
                         // else, Continue playing
+                        gr.replayInfo += ";";
                         SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O + "," + WinStates.ContinuePlay, gr.playerID2);
                     }
 
@@ -232,6 +230,7 @@ public class NetworkedServer : MonoBehaviour
 
                     // Record info in game room
                     gr.gameBoard[location] = TeamSignifier.X;
+                    gr.replayInfo += location + "." + TeamSignifier.X;
 
                     // Check for a win
                     if (gr.CheckWin())
@@ -256,6 +255,7 @@ public class NetworkedServer : MonoBehaviour
                     else
                     {
                         // else, Continue playing
+                        gr.replayInfo += ";";
                         SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X + "," + WinStates.ContinuePlay, gr.playerID1);
                     }
 
@@ -268,7 +268,9 @@ public class NetworkedServer : MonoBehaviour
         {
             // Remove ID from game rooms
             GameRoom gr = GetGameRoomWithClientID(id);
-            gr.RemoveMatchingID(id);
+
+            if (gr != null)
+                gr.RemoveMatchingID(id);
         }
         else 
 
@@ -283,6 +285,16 @@ public class NetworkedServer : MonoBehaviour
             // TODO: Send message to all participants
             SendMessageToClient(ServerToClientSignifiers.TextMessage + "," + message, gr.playerID1);
             SendMessageToClient(ServerToClientSignifiers.TextMessage + "," + message, gr.playerID2);
+        }
+        else
+
+        if (signifier == ClientToServerSignifiers.RequestReplay)
+        {
+            // Find the game room the player is in
+            GameRoom gr = GetGameRoomWithClientID(id);
+
+            // Return the replay information
+            SendMessageToClient(ServerToClientSignifiers.ReplayInformation + "," + gr.replayInfo, id);
         }
     }
 
@@ -377,6 +389,8 @@ public class GameRoom
     public int playerID1, playerID2;
 
     public int[] gameBoard = new int[9];
+
+    public string replayInfo;
 
     public GameRoom(int PlayerID1, int PlayerID2)
     {
@@ -480,6 +494,10 @@ public class GameRoom
 
     public void ResetBoard()
     {
+        // Reset stored replay information
+        replayInfo = "";
+
+        // Reset stored board information
         for (int i = 0; i < gameBoard.Length; i++)
         {
             gameBoard[i] = TeamSignifier.None;
@@ -519,6 +537,8 @@ public static class ClientToServerSignifiers
     public const int LeaveRoom = 5;
 
     public const int TextMessage = 6;
+
+    public const int RequestReplay = 7;
 }
 
 public static class ServerToClientSignifiers
@@ -534,6 +554,8 @@ public static class ServerToClientSignifiers
     public const int GameOver = 7;
 
     public const int TextMessage = 8;
+
+    public const int ReplayInformation = 9;
 }
 
 public static class WinStates
