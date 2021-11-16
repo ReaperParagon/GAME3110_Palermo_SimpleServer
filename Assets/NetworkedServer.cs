@@ -66,6 +66,9 @@ public class NetworkedServer : MonoBehaviour
                 break;
             case NetworkEventType.DisconnectEvent:
                 Debug.Log("Disconnection, " + recConnectionID);
+
+                // Remove Player from game room, if they were in one
+                ProcessRecievedMsg(ClientToServerSignifiers.LeaveRoom + "", recConnectionID);
                 break;
         }
 
@@ -270,7 +273,19 @@ public class NetworkedServer : MonoBehaviour
             GameRoom gr = GetGameRoomWithClientID(id);
 
             if (gr != null)
+            {
+                // Remove ID from room
                 gr.RemoveMatchingID(id);
+
+                // Check if they were still playing, if so: award the other player a win
+                if (gr.gameInProgress)
+                {
+                    if (gr.playerID1 == id)
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Win, gr.playerID2);
+                    else if (gr.playerID2 == id)
+                        SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Win, gr.playerID1);
+                }
+            }
         }
         else 
 
@@ -392,6 +407,8 @@ public class GameRoom
 
     public string replayInfo;
 
+    public bool gameInProgress = false;
+
     public GameRoom(int PlayerID1, int PlayerID2)
     {
         playerID1 = PlayerID1;
@@ -399,6 +416,7 @@ public class GameRoom
 
         // Setup initial board
         ResetBoard();
+        gameInProgress = true;
     }
 
     public void SetupRoom(int PlayerID1, int PlayerID2)
@@ -412,6 +430,7 @@ public class GameRoom
             playerID2 = PlayerID2;
 
             ResetBoard();
+            gameInProgress = true;
         }
     }
 
@@ -443,7 +462,10 @@ public class GameRoom
             CompareSlots(gameBoard[Board.TopRight], gameBoard[Board.MidRight], gameBoard[Board.BotRight])    ||
             CompareSlots(gameBoard[Board.TopLeft], gameBoard[Board.MidMid], gameBoard[Board.BotRight])       ||
             CompareSlots(gameBoard[Board.TopRight], gameBoard[Board.MidMid], gameBoard[Board.BotLeft]))
+        {
+            gameInProgress = false;
             return true;
+        }
 
         // No win found
         return false;
@@ -462,6 +484,7 @@ public class GameRoom
             }
 
             // ...Then we have a tie
+            gameInProgress = false;
             return true;
         }
 
