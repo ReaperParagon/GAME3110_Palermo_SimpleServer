@@ -274,17 +274,27 @@ public class NetworkedServer : MonoBehaviour
 
             if (gr != null)
             {
-                // Remove ID from room
-                gr.RemoveMatchingID(id);
-
                 // Check if they were still playing, if so: award the other player a win
                 if (gr.gameInProgress)
                 {
+                    Debug.Log("Game was in progress... Awarding a win");
+
                     if (gr.playerID1 == id)
                         SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Win, gr.playerID2);
                     else if (gr.playerID2 == id)
                         SendMessageToClient(ServerToClientSignifiers.GameOver + "," + WinStates.Win, gr.playerID1);
+
+                    // Game has now concluded
+                    gr.gameInProgress = false;
+
+                    // Remove in between delimiter
+                    gr.replayInfo = gr.replayInfo.Substring(0, gr.replayInfo.Length - 1);
                 }
+
+                Debug.Log("Removing Player from Game Room");
+
+                // Remove ID from room
+                gr.RemoveMatchingID(id);
             }
         }
         else 
