@@ -200,85 +200,23 @@ public class NetworkedServer : MonoBehaviour
             {
                 var location = int.Parse(csv[1]);
 
-                // Player 1 is Os, Player 2 is Xs
+                // Setup the team that played and get opponent ID
+                int team;
+                int opponentID;
+
                 if (gr.playerID1 == id)
                 {
-                    // Player 1 Played
-
-                    // Record info in game room
-                    gr.gameBoard[location] = TeamSignifier.O;
-                    gr.replayInfo += location + "." + TeamSignifier.O;
-
-                    // Check for a win
-                    if (gr.CheckWin())
-                    {
-                        // Set the board for the opponent and observers
-                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O + "," + WinStates.OsWin, gr.playerID2);
-
-                        foreach (var observer in gr.observerIDs)
-                        {
-                            SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O + "," + WinStates.OsWin, observer);
-                        }
-
-                        DeclareResult(gr, WinStates.OsWin);
-                    }
-                    else if (gr.CheckTie())
-                    {
-                        DeclareResult(gr, WinStates.Tie);
-                    }
-                    else
-                    {
-                        // else, Continue playing
-                        gr.replayInfo += ";";
-                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O + "," + WinStates.ContinuePlay, gr.playerID2);
-
-                        // Tell Observers about the turn
-                        foreach (var observer in gr.observerIDs)
-                        {
-                            SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.O + "," + WinStates.ContinuePlay, observer);
-                        }
-                    }
-
+                    team = TeamSignifier.O;
+                    opponentID = gr.playerID2;
                 }
                 else
                 {
-                    // Player 2 Played
-
-                    // Record info in game room
-                    gr.gameBoard[location] = TeamSignifier.X;
-                    gr.replayInfo += location + "." + TeamSignifier.X;
-
-                    // Check for a win
-                    if (gr.CheckWin())
-                    {
-                        // Set the board for the opponent and observers
-                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X + "," + WinStates.XsWin, gr.playerID1);
-
-                        foreach (var observer in gr.observerIDs)
-                        {
-                            SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X + "," + WinStates.XsWin, observer);
-                        }
-
-                        DeclareResult(gr, WinStates.XsWin);
-                    }
-                    else if (gr.CheckTie())
-                    {
-                        DeclareResult(gr, WinStates.Tie);
-                    }
-                    else
-                    {
-                        // else, Continue playing
-                        gr.replayInfo += ";";
-                        SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X + "," + WinStates.ContinuePlay, gr.playerID1);
-
-                        // Tell Observers about the turn
-                        foreach (var observer in gr.observerIDs)
-                        {
-                            SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + TeamSignifier.X + "," + WinStates.ContinuePlay, observer);
-                        }
-                    }
-
+                    team = TeamSignifier.X;
+                    opponentID = gr.playerID1;
                 }
+
+                // Play the indicated move
+                PlayAMove(gr, team, location, opponentID);
             }
         }
         else
@@ -330,7 +268,7 @@ public class NetworkedServer : MonoBehaviour
                     // Game has now concluded
                     gr.gameInProgress = false;
 
-                    // Remove in between delimiter
+                    // Remove in between delimiter that separates moves if there was replay info available
                     if (gr.replayInfo.Length > 0)
                         gr.replayInfo = gr.replayInfo.Substring(0, gr.replayInfo.Length - 1);
                 }
@@ -345,7 +283,7 @@ public class NetworkedServer : MonoBehaviour
 
         if (signifier == ClientToServerSignifiers.TextMessage)
         {
-            // TODO: Use Player Login Names
+            // Add player ID to message
             var message = "Player " + id + ": " + csv[1];
 
             // Find the room the player is in
@@ -394,6 +332,51 @@ public class NetworkedServer : MonoBehaviour
             // Add the player as an observer in the specified game room
             gameRooms[roomID].observerIDs.Add(id);
             SendMessageToClient(ServerToClientSignifiers.GameStart + "," + TeamSignifier.None, id);
+        }
+    }
+
+    private void PlayAMove(GameRoom gr, int team, int location, int opponentID)
+    {
+        // Record info in game room
+        gr.gameBoard[location] = team;
+        gr.replayInfo += location + "." + team;
+
+        // Check for a win
+        if (gr.CheckWin())
+        {
+            // Get the win state depending on the team that won
+            int teamWinState;
+
+            if (team == TeamSignifier.O)
+                teamWinState = WinStates.OsWin;
+            else
+                teamWinState = WinStates.XsWin;
+
+            // Tell opponent and observers about the win
+            SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + teamWinState, opponentID);
+
+            foreach (var observer in gr.observerIDs)
+            {
+                SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + teamWinState, observer);
+            }
+
+            DeclareResult(gr, team);
+        }
+        else if (gr.CheckTie())
+        {
+            DeclareResult(gr, WinStates.Tie);
+        }
+        else
+        {
+            // else, Continue playing
+            gr.replayInfo += ";";
+            SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + WinStates.ContinuePlay, opponentID);
+
+            // Tell Observers about the turn
+            foreach (var observer in gr.observerIDs)
+            {
+                SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + WinStates.ContinuePlay, observer);
+            }
         }
     }
 
@@ -513,7 +496,7 @@ public class GameRoom
 
     public int[] gameBoard = new int[9];
 
-    public string replayInfo;
+    public string replayInfo;   // . separates tile location and team, ; separates each move
 
     public bool gameInProgress = false;
 
@@ -706,8 +689,8 @@ public static class ServerToClientSignifiers
 
 public static class WinStates
 {
-    public const int ContinuePlay = 0;
-    public const int OsWin = 1;
-    public const int XsWin = 2;
-    public const int Tie = 3;
+    public const int ContinuePlay = 100;
+    public const int OsWin = 0;
+    public const int XsWin = 1;
+    public const int Tie = 2;
 }
