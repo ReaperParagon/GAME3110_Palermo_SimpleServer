@@ -20,6 +20,8 @@ public class NetworkedServer : MonoBehaviour
 
     LinkedList<PlayerAccount> playerAccounts;
     List<GameRoom> gameRooms;
+    List<string> currentPlayers;
+    ReplaySystem replaySystem;
 
     // Start is called before the first frame update
     void Start()
@@ -33,7 +35,12 @@ public class NetworkedServer : MonoBehaviour
 
         playerAccounts = new LinkedList<PlayerAccount>();
         gameRooms = new List<GameRoom>();
+        currentPlayers = new List<string>();
         playerAccountsFilepath = Application.dataPath + Path.DirectorySeparatorChar + "Accounts.txt";
+
+        // Load all the replay file information
+        replaySystem = new ReplaySystem();
+        replaySystem.LoadReplays();
 
         // Read in player accounts
         LoadPlayerAccounts();
@@ -115,6 +122,9 @@ public class NetworkedServer : MonoBehaviour
                 playerAccounts.AddLast(newPlayerAccount);
                 SendMessageToClient(ServerToClientSignifiers.AccountCreationComplete + ",: Succesful Account Creation", id);
 
+                // Add player to current player list
+                AddPlayerToCurrentPlayers(id, n);
+
                 // Save to list HD
                 SavePlayerAccounts();
             }
@@ -145,6 +155,9 @@ public class NetworkedServer : MonoBehaviour
                 if (p == loginPlayer.password)
                 {
                     SendMessageToClient(ServerToClientSignifiers.LoginComplete + ",: Successful Login", id);
+
+                    // Add player to current player list
+                    AddPlayerToCurrentPlayers(id, n);
                 }
                 else
                 {
@@ -283,8 +296,10 @@ public class NetworkedServer : MonoBehaviour
 
         if (signifier == ClientToServerSignifiers.TextMessage)
         {
-            // Add player ID to message
-            var message = "Player " + id + ": " + csv[1];
+            // Add player Name to Message
+            var name = GetPlayerAccountFromCurrentID(id);
+
+            var message = name + ": " + csv[1];
 
             // Find the room the player is in
             GameRoom gr = GetGameRoomWithClientID(id);
@@ -382,6 +397,12 @@ public class NetworkedServer : MonoBehaviour
 
     private void DeclareResult(GameRoom gr, int winState)
     {
+        // Save replay to a file
+        string player1 = GetPlayerAccountFromCurrentID(gr.playerID1);
+        string player2 = GetPlayerAccountFromCurrentID(gr.playerID2);
+
+        replaySystem.SaveReplay(gr.replayInfo, player1, player2);
+
         // Tell both players about the result
         SendMessageToClient(ServerToClientSignifiers.GameOver + "," + winState, gr.playerID1);
         SendMessageToClient(ServerToClientSignifiers.GameOver + "," + winState, gr.playerID2);
@@ -425,6 +446,24 @@ public class NetworkedServer : MonoBehaviour
 
             sr.Close();
         }
+    }
+
+    private void AddPlayerToCurrentPlayers(int id, string name)
+    {
+        // Add slots to match player id
+        while (id >= currentPlayers.Count)
+        {
+            // Add Empty player until at id's index position
+            currentPlayers.Add("");
+        }
+
+        // Add player to id slot
+        currentPlayers[id] = name;
+    }
+
+    private string GetPlayerAccountFromCurrentID(int id)
+    {
+        return currentPlayers[id];
     }
 
     private GameRoom GetGameRoomWithClientID(int id)
@@ -628,6 +667,142 @@ public class GameRoom
             gameBoard[i] = TeamSignifier.None;
         }
     }
+}
+
+public class ReplaySystem
+{
+
+    const string IndexFilePath = "replayIndex.txt";
+    public int lastIndexUsed;
+    LinkedList<PlayersAndIndex> replayNamesAndIndices;
+
+    public void LoadReplays()
+    {
+        replayNamesAndIndices = new LinkedList<PlayersAndIndex>();
+
+        if (File.Exists(Application.dataPath + Path.DirectorySeparatorChar + IndexFilePath))
+        {
+            StreamReader sr = new StreamReader(Application.dataPath + Path.DirectorySeparatorChar + IndexFilePath);
+
+            string line;
+            while ((line = sr.ReadLine()) != null)
+            {
+                Debug.Log(line);
+
+                string[] csv = line.Split(',');
+                int signifier = int.Parse(csv[0]);
+
+                if (signifier == ReplayReadSignifier.LastUsedIndexSignifier)
+                {
+                    lastIndexUsed = int.Parse(csv[1]);
+                }
+                else if (signifier == ReplayReadSignifier.IndexAndNameSignifier)
+                {
+                    replayNamesAndIndices.AddLast(new PlayersAndIndex(int.Parse(csv[1]), csv[2], csv[3]));
+                }
+            }
+
+            sr.Close();
+        }
+
+        //replayNames = new List<string>();
+
+        //foreach (PlayersAndIndex nameAndIndex in replayNamesAndIndices)
+        //{
+        //    replayNames.Add(nameAndIndex.name);
+        //}
+
+    }
+
+    // Add a way to pass replay information when asked for it
+
+    public void SaveReplay(string replayInfo, string player1, string player2)
+    {
+        // Separate each step of the replay
+        string[] steps = replayInfo.Split(';');
+
+        // Setup string for storing current board state
+        int[] boardState = new int[9];
+
+        for (int i = 0; i < boardState.Length; i++)
+        {
+            boardState[i] = TeamSignifier.None;
+        }
+
+        // Get / Create a new name for the saved file
+        lastIndexUsed++;
+        replayNamesAndIndices.AddLast(new PlayersAndIndex(lastIndexUsed, player1, player2));
+
+        // Save information to a local file
+        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + lastIndexUsed + ".txt");
+
+        for (int i = 0; i < steps.Length; i++)
+        {
+            // Get the individual move information
+            string[] info = steps[i].Split('.');
+
+            var boardIndex = int.Parse(info[0]);
+            var team = int.Parse(info[1]);
+
+            // Write the move information
+            sw.WriteLine(ReplaySignifiers.MoveInformation + "," + team + "," + boardIndex + ",");
+
+            // Write the board state information after adding info to board state array
+            boardState[boardIndex] = team;
+
+            for (int j = 0; j < boardState.Length; j++)
+            {
+                sw.WriteLine(ReplaySignifiers.BoardState + "," + j + "," + boardState[j]);
+            }
+        }
+
+        sw.Close();
+
+        // Add file to a list of replay files
+        SaveReplayToList();
+    }
+
+    public void SaveReplayToList()
+    {
+        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + IndexFilePath);
+
+        sw.WriteLine(ReplayReadSignifier.LastUsedIndexSignifier + "," + lastIndexUsed);
+
+        foreach (PlayersAndIndex playersAndIndex in replayNamesAndIndices)
+        {
+            sw.WriteLine(ReplayReadSignifier.IndexAndNameSignifier + "," + playersAndIndex.index + "," + playersAndIndex.player1 + "," + playersAndIndex.player2);
+        }
+
+        sw.Close();
+    }
+
+}
+
+public class PlayersAndIndex
+{
+    public string player1;
+    public string player2;
+    public int index;
+
+    public PlayersAndIndex(int Index, string p1, string p2)
+    {
+        index = Index;
+        player1 = p1;
+        player2 = p2;
+    }
+}
+
+static public class ReplayReadSignifier
+{
+    public const int LastUsedIndexSignifier = 1;
+    public const int IndexAndNameSignifier = 2;
+}
+
+
+public static class ReplaySignifiers
+{
+    public const int MoveInformation = 1;    // Team that played, current move
+    public const int BoardState = 2;     // Position, Team
 }
 
 public static class Board
