@@ -319,13 +319,20 @@ public class NetworkedServer : MonoBehaviour
         }
         else
 
-        if (signifier == ClientToServerSignifiers.RequestReplay)
+        if (signifier == ClientToServerSignifiers.RequestReplays)
         {
-            // Find the game room the player is in
-            GameRoom gr = GetGameRoomWithClientID(id);
+            // Send to the client to refresh their replay files
+            SendMessageToClient(ServerToClientSignifiers.ReplayInformation + "," + ReplayReadSignifier.ResetLocalReplayFiles, id);
 
-            // Return the replay information
-            SendMessageToClient(ServerToClientSignifiers.ReplayInformation + "," + gr.replayInfo, id);
+            // Find all replays files with the client's name
+            string playerName = GetPlayerAccountFromCurrentID(id);
+            List<string> replays = replaySystem.GetAllReplaysWithNamedPlayer(playerName);
+
+            // Return the appropriate replay information
+            foreach (var replay in replays)
+            {
+                SendMessageToClient(ServerToClientSignifiers.ReplayInformation + "," + replay, id);
+            }
         }
         else
 
@@ -368,30 +375,35 @@ public class NetworkedServer : MonoBehaviour
                 teamWinState = WinStates.XsWin;
 
             // Tell opponent and observers about the win
-            SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + teamWinState, opponentID);
+            SendInfoToOpponentAndObservers(gr, opponentID, ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + teamWinState);
 
-            foreach (var observer in gr.observerIDs)
-            {
-                SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + teamWinState, observer);
-            }
-
-            DeclareResult(gr, team);
+            DeclareResult(gr, teamWinState);
         }
         else if (gr.CheckTie())
         {
+            // Tell opponent and observers about the tie
+            SendInfoToOpponentAndObservers(gr, opponentID, ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + WinStates.Tie);
+
             DeclareResult(gr, WinStates.Tie);
         }
         else
         {
             // else, Continue playing
             gr.replayInfo += ";";
-            SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + WinStates.ContinuePlay, opponentID);
 
-            // Tell Observers about the turn
-            foreach (var observer in gr.observerIDs)
-            {
-                SendMessageToClient(ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + WinStates.ContinuePlay, observer);
-            }
+            SendInfoToOpponentAndObservers(gr, opponentID, ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + WinStates.ContinuePlay);
+        }
+    }
+
+    private void SendInfoToOpponentAndObservers(GameRoom gr, int opponentID, string msg)
+    {
+        // Tell opponent
+        SendMessageToClient(msg, opponentID);
+
+        // Tell Observers
+        foreach (var observer in gr.observerIDs)
+        {
+            SendMessageToClient(msg, observer);
         }
     }
 
@@ -704,31 +716,48 @@ public class ReplaySystem
 
             sr.Close();
         }
-
-        //replayNames = new List<string>();
-
-        //foreach (PlayersAndIndex nameAndIndex in replayNamesAndIndices)
-        //{
-        //    replayNames.Add(nameAndIndex.name);
-        //}
-
     }
 
-    // Add a way to pass replay information when asked for it
+    public List<string> GetAllReplaysWithNamedPlayer(string namedPlayer)
+    {
+        // Create list to send back
+        List<string> replayList = new List<string>();
+
+        foreach (var playersAndIndex in replayNamesAndIndices)
+        {
+            if (namedPlayer == playersAndIndex.player1 || namedPlayer == playersAndIndex.player2)
+            {
+                // Add that replay to the list
+                replayList.Add(GetReplayStringFromIndex(playersAndIndex.index));
+            }
+        }
+
+        return replayList;
+    }
+
+    private string GetReplayStringFromIndex(int index)
+    {
+        var filePath = index + ".txt";
+        var replayInfo = "";
+
+        if (File.Exists(Application.dataPath + Path.DirectorySeparatorChar + filePath))
+        {
+            StreamReader sr = new StreamReader(Application.dataPath + Path.DirectorySeparatorChar + filePath);
+
+            string line;
+            while ((line = sr.ReadLine()) != null)
+            {
+                replayInfo += line;
+            }
+
+            sr.Close();
+        }
+
+        return replayInfo;
+    }
 
     public void SaveReplay(string replayInfo, string player1, string player2)
     {
-        // Separate each step of the replay
-        string[] steps = replayInfo.Split(';');
-
-        // Setup string for storing current board state
-        int[] boardState = new int[9];
-
-        for (int i = 0; i < boardState.Length; i++)
-        {
-            boardState[i] = TeamSignifier.None;
-        }
-
         // Get / Create a new name for the saved file
         lastIndexUsed++;
         replayNamesAndIndices.AddLast(new PlayersAndIndex(lastIndexUsed, player1, player2));
@@ -736,25 +765,7 @@ public class ReplaySystem
         // Save information to a local file
         StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + lastIndexUsed + ".txt");
 
-        for (int i = 0; i < steps.Length; i++)
-        {
-            // Get the individual move information
-            string[] info = steps[i].Split('.');
-
-            var boardIndex = int.Parse(info[0]);
-            var team = int.Parse(info[1]);
-
-            // Write the move information
-            sw.WriteLine(ReplaySignifiers.MoveInformation + "," + team + "," + boardIndex + ",");
-
-            // Write the board state information after adding info to board state array
-            boardState[boardIndex] = team;
-
-            for (int j = 0; j < boardState.Length; j++)
-            {
-                sw.WriteLine(ReplaySignifiers.BoardState + "," + j + "," + boardState[j]);
-            }
-        }
+        sw.WriteLine(replayInfo);
 
         sw.Close();
 
@@ -796,13 +807,7 @@ static public class ReplayReadSignifier
 {
     public const int LastUsedIndexSignifier = 1;
     public const int IndexAndNameSignifier = 2;
-}
-
-
-public static class ReplaySignifiers
-{
-    public const int MoveInformation = 1;    // Team that played, current move
-    public const int BoardState = 2;     // Position, Team
+    public const int ResetLocalReplayFiles = 100;
 }
 
 public static class Board
@@ -838,7 +843,7 @@ public static class ClientToServerSignifiers
 
     public const int TextMessage = 6;
 
-    public const int RequestReplay = 7;
+    public const int RequestReplays = 7;
     public const int GetServerList = 8;
     public const int SpectateGame = 9;
 }
