@@ -192,7 +192,7 @@ public class NetworkedServer : MonoBehaviour
                 SendMessageToClient(ServerToClientSignifiers.GameStart + "," + TeamSignifier.X, id);
 
                 // Send information to observers as well
-                foreach (var observer in gr.observerIDs)
+                foreach (int observer in gr.observerIDs)
                 {
                     SendMessageToClient(ServerToClientSignifiers.GameStart + "," + TeamSignifier.None, observer);
                 }
@@ -211,7 +211,7 @@ public class NetworkedServer : MonoBehaviour
             // If game room exists
             if (gr != null)
             {
-                var location = int.Parse(csv[1]);
+                int location = int.Parse(csv[1]);
 
                 // Setup the team that played and get opponent ID
                 int team;
@@ -244,7 +244,7 @@ public class NetworkedServer : MonoBehaviour
                 // Check if they were an observer
                 bool wasObserver = false;
 
-                foreach (var observer in gr.observerIDs)
+                foreach (int observer in gr.observerIDs)
                 {
                     if (observer == id)
                     {
@@ -273,7 +273,7 @@ public class NetworkedServer : MonoBehaviour
                         winner = WinStates.OsWin;
                     }
 
-                    foreach (var observer in gr.observerIDs)
+                    foreach (int observer in gr.observerIDs)
                     {
                         SendMessageToClient(ServerToClientSignifiers.GameOver + "," + winner, observer);
                     }
@@ -297,9 +297,9 @@ public class NetworkedServer : MonoBehaviour
         if (signifier == ClientToServerSignifiers.TextMessage)
         {
             // Add player Name to Message
-            var name = GetPlayerAccountFromCurrentID(id);
+            string name = GetPlayerAccountFromCurrentID(id);
 
-            var message = name + ": " + csv[1];
+            string message = name + ": " + csv[1];
 
             // Find the room the player is in
             GameRoom gr = GetGameRoomWithClientID(id);
@@ -310,7 +310,7 @@ public class NetworkedServer : MonoBehaviour
                 SendMessageToClient(ServerToClientSignifiers.TextMessage + "," + message, gr.playerID1);
                 SendMessageToClient(ServerToClientSignifiers.TextMessage + "," + message, gr.playerID2);
 
-                foreach (var observer in gr.observerIDs)
+                foreach (int observer in gr.observerIDs)
                 {
                     SendMessageToClient(ServerToClientSignifiers.TextMessage + "," + message, observer);
                 }
@@ -329,20 +329,20 @@ public class NetworkedServer : MonoBehaviour
             List<string> replays = replaySystem.GetAllReplaysWithNamedPlayer(playerName);
 
             // Return the appropriate replay information
-            foreach (var replay in replays)
+            foreach (string replay in replays)
             {
                 SendMessageToClient(ServerToClientSignifiers.ReplayInformation + "," + replay, id);
             }
         }
         else
 
-        if (signifier == ClientToServerSignifiers.GetServerList)
+        if (signifier == ClientToServerSignifiers.GetGameRoomList)
         {
             // Send the server list to the player
-            foreach (var room in gameRooms)
+            foreach (GameRoom room in gameRooms)
             {
                 int roomID = room.roomID;
-                SendMessageToClient(ServerToClientSignifiers.ServerList + "," + roomID + "," + room.observerIDs.Count, id);
+                SendMessageToClient(ServerToClientSignifiers.GameRoomList + "," + roomID + "," + room.observerIDs.Count, id);
             }
         }
         else
@@ -357,6 +357,7 @@ public class NetworkedServer : MonoBehaviour
         }
     }
 
+    // CHANGE HOW WE ARE SAVING THE REPLAY INFORMATION
     private void PlayAMove(GameRoom gr, int team, int location, int opponentID)
     {
         // Record info in game room
@@ -401,7 +402,7 @@ public class NetworkedServer : MonoBehaviour
         SendMessageToClient(msg, opponentID);
 
         // Tell Observers
-        foreach (var observer in gr.observerIDs)
+        foreach (int observer in gr.observerIDs)
         {
             SendMessageToClient(msg, observer);
         }
@@ -420,7 +421,7 @@ public class NetworkedServer : MonoBehaviour
         SendMessageToClient(ServerToClientSignifiers.GameOver + "," + winState, gr.playerID2);
 
         // Tell Observers about the result
-        foreach (var observer in gr.observerIDs)
+        foreach (int observer in gr.observerIDs)
         {
             SendMessageToClient(ServerToClientSignifiers.GameOver + "," + winState, observer);
         }
@@ -489,7 +490,7 @@ public class NetworkedServer : MonoBehaviour
             }
 
             // Checking for observers
-            foreach (var observer in gr.observerIDs)
+            foreach (int observer in gr.observerIDs)
             {
                 if (observer == id)
                     return gr;
@@ -503,7 +504,7 @@ public class NetworkedServer : MonoBehaviour
     {
         GameRoom gr = null;
 
-        foreach (var room in gameRooms)
+        foreach (GameRoom room in gameRooms)
         {
             if (room != null && room.CheckAvailable())
             {
@@ -620,7 +621,7 @@ public class GameRoom
         if (!CheckWin())
         {
             // ...And all the slots are not empty...
-            foreach (var slot in gameBoard)
+            foreach (int slot in gameBoard)
             {
                 if (slot == TeamSignifier.None)
                     return false;
@@ -648,7 +649,7 @@ public class GameRoom
         }
 
         // Checking observers as well
-        foreach (var observer in observerIDs)
+        foreach (int observer in observerIDs)
         {
             if (observer == id)
             {
@@ -723,7 +724,7 @@ public class ReplaySystem
         // Create list to send back
         List<string> replayList = new List<string>();
 
-        foreach (var playersAndIndex in replayNamesAndIndices)
+        foreach (PlayersAndIndex playersAndIndex in replayNamesAndIndices)
         {
             if (namedPlayer == playersAndIndex.player1 || namedPlayer == playersAndIndex.player2)
             {
@@ -737,8 +738,8 @@ public class ReplaySystem
 
     private string GetReplayStringFromIndex(int index)
     {
-        var filePath = index + ".txt";
-        var replayInfo = "";
+        string filePath = index + ".txt";
+        string replayInfo = "";
 
         if (File.Exists(Application.dataPath + Path.DirectorySeparatorChar + filePath))
         {
@@ -844,7 +845,7 @@ public static class ClientToServerSignifiers
     public const int TextMessage = 6;
 
     public const int RequestReplays = 7;
-    public const int GetServerList = 8;
+    public const int GetGameRoomList = 8;
     public const int SpectateGame = 9;
 }
 
@@ -864,7 +865,7 @@ public static class ServerToClientSignifiers
 
     public const int ReplayInformation = 9;
 
-    public const int ServerList = 10;   // serverID , number of observers
+    public const int GameRoomList = 10;   // serverID , number of observers
 }
 
 public static class WinStates
