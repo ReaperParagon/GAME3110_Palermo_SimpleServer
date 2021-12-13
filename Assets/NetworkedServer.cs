@@ -319,20 +319,41 @@ public class NetworkedServer : MonoBehaviour
         }
         else
 
-        if (signifier == ClientToServerSignifiers.RequestReplays)
+        if (signifier == ClientToServerSignifiers.RequestReplayList)
         {
-            // Send to the client to refresh their replay files
-            SendMessageToClient(ServerToClientSignifiers.ReplayInformation + "," + ReplayReadSignifier.ResetLocalReplayFiles, id);
-
-            // Find all replays files with the client's name
+            // Get indices of all the replays from the named player
             string playerName = GetPlayerAccountFromCurrentID(id);
-            List<string> replays = replaySystem.GetAllReplaysWithNamedPlayer(playerName);
+            List<int> replayIndices = replaySystem.GetAllReplayIndicesWithNamedPlayer(playerName);
 
-            // Return the appropriate replay information
-            foreach (string replay in replays)
+            // Tell Player to reset replays
+            SendMessageToClient(ServerToClientSignifiers.ReplayIndexList + "," + ReplayTransferSignifiers.ResetIndexList, id);
+
+            // Send player indices with their games
+            foreach (int ri in replayIndices)
             {
-                SendMessageToClient(ServerToClientSignifiers.ReplayInformation + "," + replay, id);
+                SendMessageToClient(ServerToClientSignifiers.ReplayIndexList + "," + ReplayTransferSignifiers.IndexNumber + "," + ri, id);
             }
+        }
+        else
+
+        if (signifier == ClientToServerSignifiers.RequestReplayByIndex)
+        {
+            int indexToLoad = int.Parse(csv[1]);
+
+            // Get the replay information into a list
+            List<string> replayStepList = replaySystem.GetReplayStepListFromIndex(indexToLoad);
+
+            // Tell player that we are starting to send replay information
+            SendMessageToClient(ServerToClientSignifiers.ReplayInformation + "," + ReplayTransferSignifiers.StartReplayStep, id);
+
+            // Send each step of the replay
+            foreach (string rs in replayStepList)
+            {
+                SendMessageToClient(ServerToClientSignifiers.ReplayInformation + "," + ReplayTransferSignifiers.ReplayStep + "," + rs, id);
+            }
+
+            // Tell player that we have finished sending replay information
+            SendMessageToClient(ServerToClientSignifiers.ReplayInformation + "," + ReplayTransferSignifiers.EndReplaySteps, id);
         }
         else
 
@@ -357,12 +378,11 @@ public class NetworkedServer : MonoBehaviour
         }
     }
 
-    // CHANGE HOW WE ARE SAVING THE REPLAY INFORMATION
     private void PlayAMove(GameRoom gr, int team, int location, int opponentID)
     {
         // Record info in game room
         gr.gameBoard[location] = team;
-        gr.replayInfo += location + "." + team;
+        gr.replayInfo += location + "," + team;
 
         // Check for a win
         if (gr.CheckWin())
@@ -390,7 +410,7 @@ public class NetworkedServer : MonoBehaviour
         else
         {
             // else, Continue playing
-            gr.replayInfo += ";";
+            gr.replayInfo += "\n";
 
             SendInfoToOpponentAndObservers(gr, opponentID, ServerToClientSignifiers.OpponentPlayed + "," + location + "," + team + "," + WinStates.ContinuePlay);
         }
@@ -719,27 +739,27 @@ public class ReplaySystem
         }
     }
 
-    public List<string> GetAllReplaysWithNamedPlayer(string namedPlayer)
+    public List<int> GetAllReplayIndicesWithNamedPlayer(string namedPlayer)
     {
         // Create list to send back
-        List<string> replayList = new List<string>();
+        List<int> indexList = new List<int>();
 
         foreach (PlayersAndIndex playersAndIndex in replayNamesAndIndices)
         {
             if (namedPlayer == playersAndIndex.player1 || namedPlayer == playersAndIndex.player2)
             {
                 // Add that replay to the list
-                replayList.Add(GetReplayStringFromIndex(playersAndIndex.index));
+                indexList.Add(playersAndIndex.index);
             }
         }
 
-        return replayList;
+        return indexList;
     }
 
-    private string GetReplayStringFromIndex(int index)
+    public List<string> GetReplayStepListFromIndex(int index)
     {
         string filePath = index + ".txt";
-        string replayInfo = "";
+        List<string> replayStepList = new List<string>();
 
         if (File.Exists(Application.dataPath + Path.DirectorySeparatorChar + filePath))
         {
@@ -748,13 +768,13 @@ public class ReplaySystem
             string line;
             while ((line = sr.ReadLine()) != null)
             {
-                replayInfo += line;
+                replayStepList.Add(line);
             }
 
             sr.Close();
         }
 
-        return replayInfo;
+        return replayStepList;
     }
 
     public void SaveReplay(string replayInfo, string player1, string player2)
@@ -844,9 +864,10 @@ public static class ClientToServerSignifiers
 
     public const int TextMessage = 6;
 
-    public const int RequestReplays = 7;
-    public const int GetGameRoomList = 8;
-    public const int SpectateGame = 9;
+    public const int RequestReplayList = 7;
+    public const int RequestReplayByIndex = 8;
+    public const int GetGameRoomList = 9;
+    public const int SpectateGame = 10;
 }
 
 public static class ServerToClientSignifiers
@@ -863,9 +884,9 @@ public static class ServerToClientSignifiers
 
     public const int TextMessage = 8;
 
-    public const int ReplayInformation = 9;
-
-    public const int GameRoomList = 10;   // serverID , number of observers
+    public const int ReplayIndexList = 9;
+    public const int ReplayInformation = 10;
+    public const int GameRoomList = 11;   // serverID , number of observers
 }
 
 public static class WinStates
@@ -874,4 +895,13 @@ public static class WinStates
     public const int OsWin = 0;
     public const int XsWin = 1;
     public const int Tie = 2;
+}
+
+public static class ReplayTransferSignifiers
+{
+    public const int ResetIndexList = 1;
+    public const int IndexNumber = 2;
+    public const int StartReplayStep = 3;
+    public const int ReplayStep = 4;
+    public const int EndReplaySteps = 5;
 }
